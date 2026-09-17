@@ -6,7 +6,7 @@ import matplotlib.animation as animation
 
 # Parameters
 
-np.random.seed(42)
+np.random.seed(18)
 
 N = 20
 P_ER = 0.4
@@ -25,16 +25,13 @@ FRAME_STRIDE = 4
 
 
 # Generate a connected Erdos-Renyi graph
-
 def generate_graph(n, p, seed=1):
     while True:
         G = nx.erdos_renyi_graph(n, p, seed=seed)
-
         if nx.is_connected(G):
             return G
 
         seed += 1
-
 
 G = generate_graph(N, P_ER)
 Adj = nx.to_numpy_array(G)
@@ -45,18 +42,14 @@ print(
     f"connected={nx.is_connected(G)}"
 )
 
-
 # Random initial positions
-
 x0 = np.random.uniform(
     -WORLD_SCALE,
     WORLD_SCALE,
     size=(N, 2)
 )
 
-
 # Letter definitions
-
 LETTER_SEGMENTS = {
 
     "P": [
@@ -119,20 +112,15 @@ LETTER_SEGMENTS = {
 
 
 # Sample points along the letter segments
-
 def sample_segment(p1, p2, n):
     p1 = np.array(p1)
     p2 = np.array(p2)
-
     t = np.linspace(0, 1, n)
-
     return np.outer(1 - t, p1) + np.outer(t, p2)
 
 
 def letter_points(letter, n=N):
-
     segments = LETTER_SEGMENTS[letter]
-
     lengths = [
         np.linalg.norm(
             np.array(b) - np.array(a)
@@ -141,7 +129,6 @@ def letter_points(letter, n=N):
     ]
 
     total_length = sum(lengths)
-
     counts = [
         max(1, round(n * length / total_length))
         for length in lengths
@@ -178,35 +165,27 @@ formation_targets = [
 
 
 # Assign agents to nearby target points
-
 def assign_targets(x, targets):
 
     remaining = list(range(N))
     assigned = np.zeros_like(targets)
 
     for i in range(N):
-
         distances = np.linalg.norm(
             targets[remaining] - x[i],
             axis=1
         )
-
         nearest = np.argmin(distances)
         target_index = remaining.pop(nearest)
-
         assigned[i] = targets[target_index]
 
     return assigned
 
 
 # Distributed formation-control law
-
 def formation_control(x, target):
-
     dx = np.zeros_like(x)
-
     for i in range(N):
-
         neighbors = np.where(
             Adj[i] > 0
         )[0]
@@ -214,19 +193,12 @@ def formation_control(x, target):
         if len(neighbors) == 0:
             continue
 
-        error = (
-            (x[i] - x[neighbors])
-            -
-            (target[i] - target[neighbors])
-        )
-
+        error = ((x[i] - x[neighbors])-(target[i] - target[neighbors]))
         dx[i] = -K_GAIN * error.sum(axis=0)
 
     return dx
 
-
 # Simulation
-
 trajectory = [x0.copy()]
 x = x0.copy()
 
@@ -236,30 +208,14 @@ for letter, target in zip(
 ):
 
     print(f"Forming letter: {letter}")
+    target = assign_targets(x, target)
+    for _ in range(STEPS_PER_LETTER):
 
-    target = assign_targets(
-        x,
-        target
-    )
-
-    for _ in range(
-        STEPS_PER_LETTER
-    ):
-
-        dx = formation_control(
-            x,
-            target
-        )
-
+        dx = formation_control(x,target)
         x += DT * dx
-
-        trajectory.append(
-            x.copy()
-        )
-
+        trajectory.append(x.copy())
 
 trajectory = np.array(trajectory)
-
 print(
     f"Simulation finished: "
     f"{len(trajectory)} states"
@@ -267,13 +223,9 @@ print(
 
 
 # Animation
-
-fig, ax = plt.subplots(
-    figsize=(8, 8)
-)
+fig, ax = plt.subplots(figsize=(8, 8))
 
 margin = 2
-
 ax.set_xlim(
     trajectory[:, :, 0].min() - margin,
     trajectory[:, :, 0].max() + margin
@@ -292,7 +244,6 @@ ax.set_title(
 
 
 # Agents
-
 scat = ax.scatter(
     [],
     [],
@@ -305,7 +256,6 @@ scat = ax.scatter(
 
 
 # Communication graph
-
 edge_lines = [
     ax.plot(
         [],
@@ -319,7 +269,6 @@ edge_lines = [
 
 
 # Current letter
-
 letter_label = ax.text(
     0.02,
     0.96,
@@ -339,7 +288,6 @@ frame_indices = np.arange(
 
 
 def current_letter(step):
-
     index = min(
         step // STEPS_PER_LETTER,
         len(NAME) - 1
@@ -349,16 +297,13 @@ def current_letter(step):
 
 
 def init():
-
     scat.set_offsets(
         np.zeros((N, 2))
     )
-
     for line in edge_lines:
         line.set_data([], [])
 
     letter_label.set_text("")
-
     return [
         scat,
         letter_label
@@ -366,17 +311,10 @@ def init():
 
 
 def update(frame):
-
     step = frame_indices[frame]
     positions = trajectory[step]
-
     scat.set_offsets(positions)
-
-    for line, (i, j) in zip(
-        edge_lines,
-        G.edges()
-    ):
-
+    for line, (i, j) in zip(edge_lines,G.edges()):
         line.set_data(
             [positions[i, 0], positions[j, 0]],
             [positions[i, 1], positions[j, 1]]
@@ -403,46 +341,36 @@ anim = animation.FuncAnimation(
 
 
 # Save animation
-
 try:
-
     writer = animation.FFMpegWriter(
         fps=FPS,
         bitrate=1800
     )
-
     anim.save(
         "pushkar_formation_control.mp4",
         writer=writer
     )
-
     print(
         "Saved: pushkar_formation_control.mp4"
     )
 
 except Exception as e:
-
     print(
         f"FFmpeg unavailable: {e}"
     )
-
     anim.save(
         "pushkar_formation_control.gif",
         writer=animation.PillowWriter(
             fps=FPS
         )
     )
-
     print(
         "Saved: pushkar_formation_control.gif"
     )
 
-
 plt.close(fig)
 
-
 # Save graph topology
-
 fig, ax = plt.subplots(
     figsize=(6, 6)
 )
