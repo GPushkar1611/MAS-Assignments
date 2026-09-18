@@ -3,406 +3,136 @@ import networkx as nx
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 
-
-# Parameters
-
 np.random.seed(18)
 
-N = 20
-P_ER = 0.4
-NAME = "PUSHKAR"
+N,P,NAME=20,0.4,"PUSHKAR"
+DT,T_LETTER=0.02,4.0
+STEPS=int(T_LETTER/DT)
+K_GAIN,SCALE=2.0,6.0
+FPS,STRIDE=30,4
 
-DT = 0.02
-T_PER_LETTER = 4.0
-STEPS_PER_LETTER = int(T_PER_LETTER / DT)
-
-K_GAIN = 2.0
-
-WORLD_SCALE = 6.0
-
-FPS = 30
-FRAME_STRIDE = 4
-
-
-# Generate a connected Erdos-Renyi graph
-def generate_graph(n, p, seed=1):
+def generate_graph(n,p,seed=1):
     while True:
-        G = nx.erdos_renyi_graph(n, p, seed=seed)
-        if nx.is_connected(G):
-            return G
+        G=nx.erdos_renyi_graph(n,p,seed=seed)
+        if nx.is_connected(G): return G
+        seed+=1
 
-        seed += 1
+G=generate_graph(N,P)
+Adj=nx.to_numpy_array(G)
+print(f"Graph: N={N}, p={P}, edges={G.number_of_edges()}, connected={nx.is_connected(G)}")
 
-G = generate_graph(N, P_ER)
-Adj = nx.to_numpy_array(G)
+x0=np.random.uniform(-SCALE,SCALE,(N,2))
 
-print(
-    f"Graph: N={N}, p={P_ER}, "
-    f"edges={G.number_of_edges()}, "
-    f"connected={nx.is_connected(G)}"
-)
-
-# Random initial positions
-x0 = np.random.uniform(
-    -WORLD_SCALE,
-    WORLD_SCALE,
-    size=(N, 2)
-)
-
-# Letter definitions
-LETTER_SEGMENTS = {
-
-    "P": [
-        ((-0.6, -1.0), (-0.6, 1.0)),
-        ((-0.6, 1.0), (0.3, 1.0)),
-        ((0.3, 1.0), (0.6, 0.7)),
-        ((0.6, 0.7), (0.6, 0.3)),
-        ((0.6, 0.3), (0.3, 0.0)),
-        ((0.3, 0.0), (-0.6, 0.0))
-    ],
-
-    "U": [
-        ((-0.6, 1.0), (-0.6, -0.5)),
-        ((-0.6, -0.5), (-0.3, -1.0)),
-        ((-0.3, -1.0), (0.3, -1.0)),
-        ((0.3, -1.0), (0.6, -0.5)),
-        ((0.6, -0.5), (0.6, 1.0))
-    ],
-
-    "S": [
-        ((0.6, 0.8), (0.3, 1.0)),
-        ((0.3, 1.0), (-0.4, 1.0)),
-        ((-0.4, 1.0), (-0.6, 0.7)),
-        ((-0.6, 0.7), (-0.6, 0.2)),
-        ((-0.6, 0.2), (0.4, -0.2)),
-        ((0.4, -0.2), (0.6, -0.5)),
-        ((0.6, -0.5), (0.4, -1.0)),
-        ((0.4, -1.0), (-0.4, -1.0)),
-        ((-0.4, -1.0), (-0.6, -0.8))
-    ],
-
-    "H": [
-        ((-0.6, -1.0), (-0.6, 1.0)),
-        ((0.6, -1.0), (0.6, 1.0)),
-        ((-0.6, 0.0), (0.6, 0.0))
-    ],
-
-    "K": [
-        ((-0.6, -1.0), (-0.6, 1.0)),
-        ((-0.6, 0.0), (0.6, 1.0)),
-        ((-0.6, 0.0), (0.6, -1.0))
-    ],
-
-    "A": [
-        ((-0.7, -1.0), (0.0, 1.0)),
-        ((0.0, 1.0), (0.7, -1.0)),
-        ((-0.4, 0.0), (0.4, 0.0))
-    ],
-
-    "R": [
-        ((-0.6, -1.0), (-0.6, 1.0)),
-        ((-0.6, 1.0), (0.3, 1.0)),
-        ((0.3, 1.0), (0.6, 0.7)),
-        ((0.6, 0.7), (0.6, 0.3)),
-        ((0.6, 0.3), (0.3, 0.0)),
-        ((0.3, 0.0), (-0.6, 0.0)),
-        ((0.0, 0.0), (0.7, -1.0))
-    ]
+LETTER_SEGMENTS={
+"P":[((-.6,-1),(-.6,1)),((-.6,1),(.3,1)),((.3,1),(.6,.7)),((.6,.7),(.6,.3)),((.6,.3),(.3,0)),((.3,0),(-.6,0))],
+"U":[((-.6,1),(-.6,-.5)),((-.6,-.5),(-.3,-1)),((-.3,-1),(.3,-1)),((.3,-1),(.6,-.5)),((.6,-.5),(.6,1))],
+"S":[((.6,.8),(.3,1)),((.3,1),(-.4,1)),((-.4,1),(-.6,.7)),((-.6,.7),(-.6,.2)),((-.6,.2),(.4,-.2)),((.4,-.2),(.6,-.5)),((.6,-.5),(.4,-1)),((.4,-1),(-.4,-1)),((-.4,-1),(-.6,-.8))],
+"H":[((-.6,-1),(-.6,1)),((.6,-1),(.6,1)),((-.6,0),(.6,0))],
+"K":[((-.6,-1),(-.6,1)),((-.6,0),(.6,1)),((-.6,0),(.6,-1))],
+"A":[((-.7,-1),(0,1)),((0,1),(.7,-1)),((-.4,0),(.4,0))],
+"R":[((-.6,-1),(-.6,1)),((-.6,1),(.3,1)),((.3,1),(.6,.7)),((.6,.7),(.6,.3)),((.6,.3),(.3,0)),((.3,0),(-.6,0)),((0,0),(.7,-1))]
 }
 
+def sample_segment(a,b,n):
+    a,b=np.array(a),np.array(b)
+    t=np.linspace(0,1,n)
+    return np.outer(1-t,a)+np.outer(t,b)
 
-# Sample points along the letter segments
-def sample_segment(p1, p2, n):
-    p1 = np.array(p1)
-    p2 = np.array(p2)
-    t = np.linspace(0, 1, n)
-    return np.outer(1 - t, p1) + np.outer(t, p2)
+def letter_points(letter,n=N):
+    seg=LETTER_SEGMENTS[letter]
+    lengths=[np.linalg.norm(np.array(b)-a) for a,b in seg]
+    counts=[max(1,round(n*l/sum(lengths))) for l in lengths]
 
+    while sum(counts)>n:
+        i=np.argmax(counts)
+        if counts[i]>1: counts[i]-=1
+    while sum(counts)<n: counts[np.argmax(lengths)]+=1
 
-def letter_points(letter, n=N):
-    segments = LETTER_SEGMENTS[letter]
-    lengths = [
-        np.linalg.norm(
-            np.array(b) - np.array(a)
-        )
-        for a, b in segments
-    ]
+    return np.vstack([sample_segment(a,b,c) for (a,b),c in zip(seg,counts)])*SCALE
 
-    total_length = sum(lengths)
-    counts = [
-        max(1, round(n * length / total_length))
-        for length in lengths
-    ]
+targets=[letter_points(c) for c in NAME]
 
-    # Adjust so exactly N points are generated
-    while sum(counts) > n:
-        i = np.argmax(counts)
-
-        if counts[i] > 1:
-            counts[i] -= 1
-
-    while sum(counts) < n:
-        i = np.argmax(lengths)
-        counts[i] += 1
-
-    points = []
-
-    for (p1, p2), count in zip(
-        segments,
-        counts
-    ):
-        points.append(
-            sample_segment(p1, p2, count)
-        )
-
-    return np.vstack(points) * WORLD_SCALE
-
-
-formation_targets = [
-    letter_points(letter)
-    for letter in NAME
-]
-
-
-# Assign agents to nearby target points
-def assign_targets(x, targets):
-
-    remaining = list(range(N))
-    assigned = np.zeros_like(targets)
-
+def assign_targets(x,target):
+    remaining=list(range(N))
+    assigned=np.zeros_like(target)
     for i in range(N):
-        distances = np.linalg.norm(
-            targets[remaining] - x[i],
-            axis=1
-        )
-        nearest = np.argmin(distances)
-        target_index = remaining.pop(nearest)
-        assigned[i] = targets[target_index]
-
+        d=np.linalg.norm(target[remaining]-x[i],axis=1)
+        assigned[i]=target[remaining.pop(np.argmin(d))]
     return assigned
 
-
-# Distributed formation-control law
-def formation_control(x, target):
-    dx = np.zeros_like(x)
+def formation_control(x,target):
+    dx=np.zeros_like(x)
     for i in range(N):
-        neighbors = np.where(
-            Adj[i] > 0
-        )[0]
-
-        if len(neighbors) == 0:
-            continue
-
-        error = ((x[i] - x[neighbors])-(target[i] - target[neighbors]))
-        dx[i] = -K_GAIN * error.sum(axis=0)
-
+        nbr=np.where(Adj[i]>0)[0]
+        if len(nbr):
+            dx[i]=-K_GAIN*(((x[i]-x[nbr])-(target[i]-target[nbr])).sum(axis=0))
     return dx
 
-# Simulation
-trajectory = [x0.copy()]
-x = x0.copy()
+trajectory=[x0.copy()]
+x=x0.copy()
 
-for letter, target in zip(
-    NAME,
-    formation_targets
-):
-
+for letter,target in zip(NAME,targets):
     print(f"Forming letter: {letter}")
-    target = assign_targets(x, target)
-    for _ in range(STEPS_PER_LETTER):
-
-        dx = formation_control(x,target)
-        x += DT * dx
+    target=assign_targets(x,target)
+    for _ in range(STEPS):
+        x+=DT*formation_control(x,target)
         trajectory.append(x.copy())
 
-trajectory = np.array(trajectory)
-print(
-    f"Simulation finished: "
-    f"{len(trajectory)} states"
-)
-
+trajectory=np.array(trajectory)
+print(f"Simulation finished: {len(trajectory)} states")
 
 # Animation
-fig, ax = plt.subplots(figsize=(8, 8))
-
-margin = 2
-ax.set_xlim(
-    trajectory[:, :, 0].min() - margin,
-    trajectory[:, :, 0].max() + margin
-)
-
-ax.set_ylim(
-    trajectory[:, :, 1].min() - margin,
-    trajectory[:, :, 1].max() + margin
-)
-
+fig,ax=plt.subplots(figsize=(8,8))
+margin=2
+ax.set_xlim(trajectory[:,:,0].min()-margin,trajectory[:,:,0].max()+margin)
+ax.set_ylim(trajectory[:,:,1].min()-margin,trajectory[:,:,1].max()+margin)
 ax.set_aspect("equal")
+ax.set_title(f"Formation Control: {NAME} ({N} agents)")
 
-ax.set_title(
-    f"Formation Control: {NAME} ({N} agents)"
-)
+scat=ax.scatter([],[],s=70,c="crimson",edgecolors="black",linewidths=.5,zorder=2)
+edges=[ax.plot([],[],color="gray",lw=.5,alpha=.5)[0] for _ in G.edges()]
+label=ax.text(.02,.96,"",transform=ax.transAxes,fontsize=16,fontweight="bold",va="top")
 
-
-# Agents
-scat = ax.scatter(
-    [],
-    [],
-    s=70,
-    c="crimson",
-    edgecolors="black",
-    linewidths=0.5,
-    zorder=2
-)
-
-
-# Communication graph
-edge_lines = [
-    ax.plot(
-        [],
-        [],
-        color="gray",
-        lw=0.5,
-        alpha=0.5
-    )[0]
-    for _ in G.edges()
-]
-
-
-# Current letter
-letter_label = ax.text(
-    0.02,
-    0.96,
-    "",
-    transform=ax.transAxes,
-    fontsize=16,
-    fontweight="bold",
-    va="top"
-)
-
-
-frame_indices = np.arange(
-    0,
-    len(trajectory),
-    FRAME_STRIDE
-)
-
+frames=np.arange(0,len(trajectory),STRIDE)
 
 def current_letter(step):
-    index = min(
-        step // STEPS_PER_LETTER,
-        len(NAME) - 1
-    )
-
-    return NAME[index]
-
+    return NAME[min(step//STEPS,len(NAME)-1)]
 
 def init():
-    scat.set_offsets(
-        np.zeros((N, 2))
-    )
-    for line in edge_lines:
-        line.set_data([], [])
+    scat.set_offsets(np.zeros((N,2)))
+    for e in edges: e.set_data([],[])
+    label.set_text("")
+    return [scat,label]+edges
 
-    letter_label.set_text("")
-    return [
-        scat,
-        letter_label
-    ] + edge_lines
+def update(f):
+    step=frames[f]
+    pos=trajectory[step]
+    scat.set_offsets(pos)
+    for e,(i,j) in zip(edges,G.edges()):
+        e.set_data(pos[[i,j],0],pos[[i,j],1])
+    label.set_text(f"Target letter: {current_letter(step)}")
+    return [scat,label]+edges
 
+anim=animation.FuncAnimation(fig,update,frames=len(frames),init_func=init,
+                             blit=True,interval=1000/FPS)
 
-def update(frame):
-    step = frame_indices[frame]
-    positions = trajectory[step]
-    scat.set_offsets(positions)
-    for line, (i, j) in zip(edge_lines,G.edges()):
-        line.set_data(
-            [positions[i, 0], positions[j, 0]],
-            [positions[i, 1], positions[j, 1]]
-        )
-
-    letter_label.set_text(
-        f"Target letter: {current_letter(step)}"
-    )
-
-    return [
-        scat,
-        letter_label
-    ] + edge_lines
-
-
-anim = animation.FuncAnimation(
-    fig,
-    update,
-    frames=len(frame_indices),
-    init_func=init,
-    blit=True,
-    interval=1000 / FPS
-)
-
-
-# Save animation
 try:
-    writer = animation.FFMpegWriter(
-        fps=FPS,
-        bitrate=1800
-    )
-    anim.save(
-        "pushkar_formation_control.mp4",
-        writer=writer
-    )
-    print(
-        "Saved: pushkar_formation_control.mp4"
-    )
-
+    anim.save("pushkar_formation_control.mp4",
+              writer=animation.FFMpegWriter(fps=FPS,bitrate=1800))
+    print("Saved: pushkar_formation_control.mp4")
 except Exception as e:
-    print(
-        f"FFmpeg unavailable: {e}"
-    )
-    anim.save(
-        "pushkar_formation_control.gif",
-        writer=animation.PillowWriter(
-            fps=FPS
-        )
-    )
-    print(
-        "Saved: pushkar_formation_control.gif"
-    )
-
+    print(f"FFmpeg unavailable: {e}")
+    anim.save("pushkar_formation_control.gif",
+              writer=animation.PillowWriter(fps=FPS))
+    print("Saved: pushkar_formation_control.gif")
 plt.close(fig)
 
-# Save graph topology
-fig, ax = plt.subplots(
-    figsize=(6, 6)
-)
-
-graph_pos = nx.spring_layout(
-    G,
-    seed=1
-)
-
-nx.draw(
-    G,
-    graph_pos,
-    ax=ax,
-    with_labels=True,
-    node_color="crimson",
-    edge_color="gray",
-    font_color="white",
-    font_size=8
-)
-
-ax.set_title(
-    f"Erdos-Renyi Graph (N={N}, p={P_ER})"
-)
-
-fig.savefig(
-    "erdos_renyi_graph.png",
-    dpi=150,
-    bbox_inches="tight"
-)
-
+# Graph topology
+fig,ax=plt.subplots(figsize=(6,6))
+pos=nx.spring_layout(G,seed=1)
+nx.draw(G,pos,ax=ax,with_labels=True,node_color="crimson",
+        edge_color="gray",font_color="white",font_size=8)
+ax.set_title(f"Erdos-Renyi Graph (N={N}, p={P})")
+fig.savefig("erdos_renyi_graph.png",dpi=150,bbox_inches="tight")
 plt.close(fig)
-
-print(
-    "Saved: erdos_renyi_graph.png"
-)
+print("Saved: erdos_renyi_graph.png")
