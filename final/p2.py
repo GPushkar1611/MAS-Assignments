@@ -34,12 +34,12 @@ def record(T, h):
 hist = {'DGD': [], 'GT': [], 'ADMM': []}
 
 T = np.zeros((N, d))                          # DGD
-for k in range(K):
+for k in range(K + 1):
     record(T, hist['DGD'])
     T = W @ T - alpha * grad(T)
 
 T = np.zeros((N, d)); S = grad(T)             # Gradient Tracking
-for k in range(K):
+for k in range(K + 1):
     record(T, hist['GT'])
     Tn = W @ T - alpha * S
     S = W @ S + grad(Tn) - grad(T)
@@ -47,7 +47,7 @@ for k in range(K):
 
 T = np.zeros((N, d)); P = np.zeros((N, d))    # Decentralized ADMM
 Minv = np.linalg.inv(H + 2 * rho * deg[:, None, None] * np.eye(d))
-for k in range(K):
+for k in range(K + 1):
     record(T, hist['ADMM'])
     T = np.einsum('nij,nj->ni', Minv, g - P + rho * (deg[:, None] * T + Adj @ T))
     P += rho * (deg[:, None] * T - Adj @ T)
@@ -59,7 +59,7 @@ refs = [None, np.linalg.norm(theta_ls - theta_star), F(theta_ls), None]
 for q in range(4):
     plt.figure(figsize=(6, 4))
     for name, h in hist.items():
-        plt.semilogy(range(1, K), np.array(h)[1:, q], label=name)
+        plt.semilogy(range(1, K + 1), np.array(h)[1:, q], label=name)
     if refs[q]:
         plt.axhline(refs[q], color='k', ls='--', label='centralized LS')
     plt.xlabel('iteration $k$'); plt.title(titles[q]); plt.legend(); plt.grid(alpha=0.3)
